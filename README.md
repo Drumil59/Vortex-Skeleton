@@ -2,7 +2,7 @@
 
 
 **Vortex-Skeleton** is a modular web security scanning framework built for **penetration testers, security researchers, and bug bounty hunters**.
-It provides a flexible and extensible architecture for performing **automated vulnerability assessments (VAPT)** against modern web applications and APIs.
+It provides a flexible and extensible architecture for performing **automated vulnerability assessments (VAPT)** against modern web applications.
 
 The framework is designed with a **plugin-based detection engine**, enabling rapid integration of new vulnerability checks and custom security testing modules.
 
@@ -11,7 +11,7 @@ The framework is designed with a **plugin-based detection engine**, enabling rap
 # 🚀 Features
 
 • Modular **plugin-based vulnerability detection system**
-• Designed for **web application and API security testing**
+• Designed for **web application testing**
 • Built-in vulnerability checks for multiple attack classes
 • **Parallel scanning engine** for faster testing
 • **Evidence collection** for vulnerability findings
