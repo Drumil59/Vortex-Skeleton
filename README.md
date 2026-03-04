@@ -100,7 +100,7 @@ Vortex-Skeleton/
 Clone the repository:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Vortex-Skeleton.git
+git clone https://github.com/Drumil59/Vortex-Skeleton
 ```
 
 Navigate into the project directory:
