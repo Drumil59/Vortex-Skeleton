@@ -1,103 +1,191 @@
-import json
+import os
 import time
 from collections import defaultdict
+from report.severity_sorter import SeveritySorter
+
+BANNER = """
+\033[94m
+██╗   ██╗ ██████╗ ██████╗ ████████╗███████╗██╗  ██╗
+██║   ██║██╔═══██╗██╔══██╗╚══██╔══╝██╔════╝╚██╗██╔╝
+██║   ██║██║   ██║██████╔╝   ██║   █████╗   ╚███╔╝ 
+╚██╗ ██╔╝██║   ██║██╔══██╗   ██║   ██╔══╝   ██╔██╗ 
+ ╚████╔╝ ╚██████╔╝██║  ██║   ██║   ███████╗██╔╝ ██╗
+  ╚═══╝   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+\033[0m
+   \033[3m>> VORTEX-SKELETON (AGGREGATED) <<\033[0m
+"""
 
 class Report:
     @staticmethod
-    def generate(evidence, path):
-        """
-        Generates a structured JSON report from the collected evidence.
-        """
-        report_data = {
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "total_findings": len(evidence.items),
-            "findings": evidence.items
-        }
-
-        try:
-            with open(path, "w") as f:
-                json.dump(report_data, f, indent=4, default=str)
-            print(f"[+] JSON Report saved to {path}")
-            return True
-        except Exception as e:
-            print(f"[!] Error generating report: {e}")
-            return False
+    def print_banner():
+        print(BANNER)
 
     @staticmethod
-    def print_terminal(evidence):
-        """
-        Prints an aggregated, professional summary to the terminal.
-        Groups findings by vulnerability type (plugin name).
-        """
-        print("\n" + "="*60)
-        print("\033[91m[!] VORTEX VULNERABILITY REPORT (AGGREGATED)\033[0m")
-        print("="*60)
+    def generate_console_report(target, findings):
+        Report.print_banner()
+        
+        total_vulns = len(findings)
+        print(f"\n[+] Scanned: {target} [{total_vulns} Vulns]")
+        print("\n============================================================")
+        print("[!] VORTEX VULNERABILITY REPORT (AGGREGATED)")
+        print("============================================")
 
-        if not evidence.items:
-            print("[*] No vulnerabilities discovered.")
+        if not findings:
+            print("\n[*] No vulnerabilities discovered.")
             return
 
-        # 1. Group by Plugin Name
+        # 1. Group findings by type
         grouped = defaultdict(list)
-        for item in evidence.items:
-            plugin_name = item.get('plugin', 'Unknown Vulnerability')
-            grouped[plugin_name].append(item)
+        for f in findings:
+            vuln_type = f['type']
+            grouped[vuln_type].append(f)
 
-        # 2. Sort keys for consistent output
-        sorted_vulnerabilities = sorted(grouped.keys())
-
-        # 3. Iterate and Print
-        for vuln_name in sorted_vulnerabilities:
-            items = grouped[vuln_name]
-            count = len(items)
-
-            # Header: Vulnerability Name
-            print(f"\n\033[94m[+] {vuln_name}\033[0m \033[37m({count} findings)\033[0m")
-
-            # Extract common attributes from the first item
-            first_item = items[0]
-            confidence = first_item.get('confidence', 'MEDIUM')
+        # 2. Prepare aggregated data for each category
+        aggregated_categories = []
+        for vuln_type, items in grouped.items():
+            # Get common attributes (severity, confidence, details should be consistent per type)
+            first = items[0]
+            severity = first.get('severity', 'INFO')
+            confidence = first.get('confidence', 'HIGH')
+            details = first.get('details', 'No description available.')
             
-            print(f"    Confidence: {confidence}")
-
-            # Check if 'details' are identical across all items
-            first_details = first_item.get('details')
-            all_same_details = all(i.get('details') == first_details for i in items)
-            
-            if all_same_details and first_details:
-                print(f"    Details:    {first_details}")
-
-            print("    Affected Resources:")
-
-            # Print Endpoints
+            # Deduplicate endpoints within category
+            unique_endpoints = set()
             for item in items:
-                endpoint = item.get('endpoint')
-                parameter = item.get('parameter')
-                payload = item.get('payload')
-                details = item.get('details')
-                proof = item.get('evidence')
+                unique_endpoints.add(item['url'])
+            
+            # Collect all unique payloads and proofs
+            all_payloads = []
+            for item in items:
+                for p in item.get('payloads', []):
+                    if p and p not in all_payloads:
+                        all_payloads.append(p)
+            
+            all_proofs = []
+            for item in items:
+                for p in item.get('proofs', []):
+                    if p and p not in all_proofs:
+                        all_proofs.append(p)
+            
+            aggregated_categories.append({
+                'type': vuln_type,
+                'count': len(unique_endpoints),
+                'severity': severity,
+                'confidence': confidence,
+                'details': details,
+                'endpoints': sorted(list(unique_endpoints)),
+                'payloads': all_payloads,
+                'proofs': all_proofs
+            })
 
-                # Bullet line
-                line = f"      - {endpoint}"
-                if parameter:
-                    line += f" (Param: \033[93m{parameter}\033[0m)"
-                print(line)
+        # 3. Sort categories by severity
+        sorted_categories = sorted(
+            aggregated_categories,
+            key=lambda x: SeveritySorter.get_priority(x['severity']),
+            reverse=True
+        )
 
-                # Indented Attributes
-                if payload:
-                    print(f"        Payload:    {payload}")
+        # 4. Print findings
+        for cat in sorted_categories:
+            print(f"\n[+] {cat['type']} ({cat['count']} findings)")
+            print(f"Severity:    {cat['severity']}")
+            print(f"Confidence:  {cat['confidence']}")
+            print(f"Details:     {cat['details']}")
+            
+            print("\n```")
+            print("Affected Resources:")
+            for ep in cat['endpoints']:
+                print(f"  - {ep}")
+            
+            if cat['payloads']:
+                print("\nPayload:")
+                for p in cat['payloads']:
+                    print(f"  {p}")
+            
+            if cat['proofs']:
+                print("\nProof:")
+                for p in cat['proofs']:
+                    print(f"  {p}")
+            print("```")
+
+        print(f"\n[*] Scan Summary: {total_vulns} findings across {len(grouped)} categories.")
+
+    @staticmethod
+    def generate_markdown_report(target, findings, workspace_path):
+        total_vulns = len(findings)
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        md_content = f"# Vortex Vulnerability Report (Aggregated)\n\n"
+        md_content += f"**Target:** {target}\n"
+        md_content += f"**Date:** {timestamp}\n"
+        md_content += f"**Total Unique Findings:** {total_vulns}\n\n"
+        md_content += "---\n\n"
+
+        if not findings:
+            md_content += "No vulnerabilities discovered.\n"
+        else:
+            # Group and Sort (reuse logic from console report or keep it separate for flexibility)
+            grouped = defaultdict(list)
+            for f in findings:
+                grouped[f['type']].append(f)
+            
+            aggregated = []
+            for vuln_type, items in grouped.items():
+                first = items[0]
+                unique_endpoints = sorted(list(set(i['url'] for i in items)))
+                all_payloads = []
+                for i in items:
+                    for p in i.get('payloads', []):
+                        if p and p not in all_payloads: all_payloads.append(p)
                 
-                # If details differ, print them per-item
-                if not all_same_details and details:
-                    print(f"        Details:    {details}")
+                all_proofs = []
+                for i in items:
+                    for p in i.get('proofs', []):
+                        if p and p not in all_proofs: all_proofs.append(p)
 
-                # Print the Evidence/Proof
-                if proof:
-                    # Truncate if too long to avoid flooding
-                    if len(str(proof)) > 100:
-                         proof = str(proof)[:97] + "..."
-                    print(f"        Proof:      \033[90m{proof}\033[0m")
+                aggregated.append({
+                    'type': vuln_type,
+                    'severity': first.get('severity', 'INFO'),
+                    'confidence': first.get('confidence', 'HIGH'),
+                    'details': first.get('details', 'No description available.'),
+                    'endpoints': unique_endpoints,
+                    'payloads': all_payloads,
+                    'proofs': all_proofs
+                })
+            
+            sorted_agg = sorted(aggregated, key=lambda x: SeveritySorter.get_priority(x['severity']), reverse=True)
 
-            print("-" * 40)
+            for cat in sorted_agg:
+                md_content += f"## {cat['type']} ({len(cat['endpoints'])} findings)\n\n"
+                md_content += f"* **Severity:** {cat['severity']}\n"
+                md_content += f"* **Confidence:** {cat['confidence']}\n"
+                md_content += f"* **Details:** {cat['details']}\n\n"
+                
+                md_content += "### Affected Resources\n"
+                for ep in cat['endpoints']:
+                    md_content += f"- {ep}\n"
+                
+                if cat['payloads']:
+                    md_content += "\n### Payloads\n"
+                    for p in cat['payloads']:
+                        md_content += f"```\n{p}\n```\n"
+                
+                if cat['proofs']:
+                    md_content += "\n### Proof\n"
+                    for p in cat['proofs']:
+                        md_content += f"{p}\n"
+                
+                md_content += "\n---\n\n"
 
-        print(f"\n[*] Scan Summary: {len(evidence.items)} total findings across {len(grouped)} categories.")
+        md_content += "## Scan Summary\n\n"
+        md_content += f"{total_vulns} findings across {len(grouped)} categories.\n\n"
+        md_content += "---\n"
+
+        reports_dir = os.path.join(workspace_path, "reports")
+        os.makedirs(reports_dir, exist_ok=True)
+        report_file = os.path.join(reports_dir, "report.md")
+        
+        with open(report_file, "w") as f:
+            f.write(md_content)
+        
+        print(f"\n[+] Report saved to: {report_file}")

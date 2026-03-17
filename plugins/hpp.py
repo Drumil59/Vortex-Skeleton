@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -13,7 +13,10 @@ class HPPPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
             baseline = self._make_request(http, endpoint, base_params)
@@ -49,16 +52,12 @@ class HPPPlugin(BasePlugin):
                 if not resp: continue
                 
                 if "vortex_hpp" in resp.text:
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        parameter=pname,
-                        payload=f"{pname}={param['value']}&{pname}=vortex_hpp",
-                        evidence="Polluted parameter value reflected (HPP)",
+                     findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': pname, 'payload': f"{pname}={param['value']}&{pname}=vortex_hpp", 'evidence': "Polluted parameter value reflected (HPP})",
                         confidence="MEDIUM"
                     )
 
             except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

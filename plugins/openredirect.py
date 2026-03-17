@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class OpenRedirectPlugin(BasePlugin):
     name = "Open Redirect (Enterprise)"
@@ -8,7 +8,10 @@ class OpenRedirectPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -36,15 +39,8 @@ class OpenRedirectPlugin(BasePlugin):
                         # e.g. Location: /login?next=http://evil... (This is Open Redirect, but sometimes valid)
                         # We report it as High Confidence.
                         
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param['name'],
-                            payload=self.PAYLOAD,
-                            evidence=f"Redirects to arbitrary domain: {location}",
-                            confidence="HIGH",
-                            details="Server responded with 3xx and Location header containing payload."
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': self.PAYLOAD, 'evidence': f"Redirects to arbitrary domain: {location}", 'confidence': "HIGH", 'details': "Server responded with 3xx and Location header containing payload."})
                         return # Stop after one finding per endpoint
 
             except: continue
+        return findings

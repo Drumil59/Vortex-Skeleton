@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -15,7 +15,10 @@ class FormulaPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -29,17 +32,10 @@ class FormulaPlugin(BasePlugin):
                     if not resp: continue
                     
                     if resp.status_code == 200 and len(resp.text) > len(baseline.text):
-                         evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param['name'],
-                            payload=payload,
-                            evidence="CSV Injection payload accepted",
-                            confidence="LOW",
-                            details="The application accepts formula characters at the start of input."
-                        )
+                         findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': payload, 'evidence': "CSV Injection payload accepted", 'confidence': "LOW", 'details': "The application accepts formula characters at the start of input."})
                          break
                 except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

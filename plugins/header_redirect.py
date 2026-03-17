@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class HeaderBasedRedirectPlugin(BasePlugin):
     """
@@ -15,7 +15,10 @@ class HeaderBasedRedirectPlugin(BasePlugin):
     def should_run(self, endpoint):
         return endpoint.method == "GET"
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             for header, payload in self.HEADERS_TO_TEST:
                 headers = {header: payload}
@@ -27,13 +30,7 @@ class HeaderBasedRedirectPlugin(BasePlugin):
                 if 300 <= resp.status_code < 400:
                     location = resp.headers.get("Location", "")
                     if "evil-vortex.com" in location:
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            payload=f"{header}: {payload}",
-                            evidence=f"Redirect triggered by {header}",
-                            confidence="HIGH"
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': f"{header}: {payload}", 'evidence': f"Redirect triggered by {header}", 'confidence': "HIGH"})
 
                 # Check for Content Spoofing (X-Original-URL might show different content)
                 # If we get a 200 OK but for a different page than requested
@@ -44,3 +41,4 @@ class HeaderBasedRedirectPlugin(BasePlugin):
 
         except Exception:
             pass
+        return findings

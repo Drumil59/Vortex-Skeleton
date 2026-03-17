@@ -5,5 +5,9 @@ class BasePlugin:
     def should_run(self, endpoint):
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         raise NotImplementedError
+        return findings

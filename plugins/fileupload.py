@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import io
 
 class FileUploadPlugin(BasePlugin):
@@ -20,7 +20,10 @@ class FileUploadPlugin(BasePlugin):
         # Check for 'file' or 'upload' in params/url
         return endpoint.method == "POST" and any(x in endpoint.url.lower() or any(x in p['name'].lower() for p in endpoint.params) for x in ['upload', 'file', 'image', 'asset'])
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         for filename, content, ctype in self.TEST_FILES:
             try:
                 # Prepare multipart data
@@ -48,15 +51,9 @@ class FileUploadPlugin(BasePlugin):
                     # Flag as high if it's a PHP-related extension
                     confidence = "HIGH" if ".php" in filename or ".phtml" in filename else "MEDIUM"
                     
-                    evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        payload=filename,
-                        evidence=f"File upload accepted: {filename}",
-                        confidence=confidence,
-                        details=f"Status: {resp.status_code}. Possible successful upload of executable extension."
-                    )
+                    findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': filename, 'evidence': f"File upload accepted: {filename}", 'confidence': confidence, 'details': f"Status: {resp.status_code}. Possible successful upload of executable extension."})
                     break
 
             except Exception:
                 continue
+        return findings

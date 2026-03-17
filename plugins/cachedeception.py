@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -14,7 +14,10 @@ class CacheDeceptionPlugin(BasePlugin):
     def should_run(self, endpoint):
         return endpoint.method == "GET"
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             # 1. Baseline: Get the normal page
             baseline = http.request("GET", endpoint.url)
@@ -41,12 +44,6 @@ class CacheDeceptionPlugin(BasePlugin):
                 
                 cc = resp.headers.get("Cache-Control", "").lower()
                 if "no-cache" not in cc and "no-store" not in cc:
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        payload="/vortex_test.css",
-                        evidence="Dynamic page served as static asset with loose caching",
-                        confidence="MEDIUM",
-                        details="CDN might cache this private page."
-                    )
+                     findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': "/vortex_test.css", 'evidence': "Dynamic page served as static asset with loose caching", 'confidence': "MEDIUM", 'details': "CDN might cache this private page."})
         except: pass
+        return findings

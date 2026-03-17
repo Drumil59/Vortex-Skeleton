@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class XXEPlugin(BasePlugin):
     """
@@ -27,7 +27,10 @@ class XXEPlugin(BasePlugin):
         # We will try injecting XML into standard params too, as some parsers accept it.
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -49,6 +52,7 @@ class XXEPlugin(BasePlugin):
                         if self._check_resp(resp_xml, evidence, endpoint, param, payload): break
 
                 except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":
@@ -60,13 +64,6 @@ class XXEPlugin(BasePlugin):
         
         # Check for LFI markers
         if "root:x:0:0" in resp.text or "[extensions]" in resp.text:
-             evidence.add(
-                plugin=self.name,
-                endpoint=endpoint.url,
-                parameter=param['name'],
-                payload=payload,
-                evidence="XXE File Read Confirmed",
-                confidence="CRITICAL"
-            )
+             findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': payload, 'evidence': "XXE File Read Confirmed", 'confidence': "CRITICAL"})
              return True
         return False

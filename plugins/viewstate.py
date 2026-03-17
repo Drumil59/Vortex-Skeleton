@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import base64
 import re
 
@@ -12,7 +12,10 @@ class ViewStatePlugin(BasePlugin):
     def should_run(self, endpoint):
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             resp = http.request("GET", endpoint.url)
             if not resp or "__VIEWSTATE" not in resp.text:
@@ -40,14 +43,7 @@ class ViewStatePlugin(BasePlugin):
                 
                 # Look for common strings indicating unencrypted objects
                 if b"System.Collections" in decoded or b"System.String" in decoded:
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        payload=None,
-                        evidence="Unencrypted ViewState detected",
-                        confidence="MEDIUM",
-                        details="Decoded ViewState contains readable serialized object data."
-                    )
+                     findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': None, 'evidence': "Unencrypted ViewState detected", 'confidence': "MEDIUM", 'details': "Decoded ViewState contains readable serialized object data."})
                 
                 # Check for "MAC enabled" property is hard without a key, 
                 # but if the viewstate is short, it might lack a MAC.
@@ -57,3 +53,4 @@ class ViewStatePlugin(BasePlugin):
 
         except Exception:
             pass
+        return findings

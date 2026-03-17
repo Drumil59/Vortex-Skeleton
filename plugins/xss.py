@@ -1,108 +1,75 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
+from typing import List, Dict, Any, Optional
 import random
 import string
 import html
 
 class XSSPlugin(BasePlugin):
-    name = "Reflected XSS (Enterprise)"
+    """
+    Enterprise Reflected XSS Plugin.
+    Run only if parameters or forms exist.
+    """
+    name = "Enterprise Reflected XSS"
+    category = "Injection"
 
-    def should_run(self, endpoint):
-        return len(endpoint.params) > 0
-
-    def run(self, http, endpoint, analyzer, evidence):
-        try:
-            base_params = {p['name']: p['value'] for p in endpoint.params}
-        except: return
-
-        # 1. Canary Generation
-        # We use a purely alphanumeric canary to test for REFLECTION first.
-        # This avoids WAF blocking "script" tags initially.
-        canary_str = ''.join(random.choices(string.ascii_letters, k=8))
+    def detect(self, http: Any, endpoint: Any, payload_intel: Any) -> List[Dict[str, Any]]:
+        findings = []
         
-        # 2. Reflection Probe
-        # If this canary doesn't come back, the param isn't reflected -> Skip complex payloads.
-        for param in endpoint.params:
-            param_name = param['name']
+        # Gather all input vectors (from query params and forms)
+        vectors = []
+        for p in endpoint.params:
+            vectors.append({"name": p['name'], "source": "query", "value": p.get('value', '')})
+        
+        for form in endpoint.forms:
+            for inp in form.get('inputs', []):
+                vectors.append({"name": inp['name'], "source": "form", "value": inp.get('value', ''), "method": form.get('method')})
+
+        if not vectors:
+            return []
+
+        for vector in vectors:
+            canary = "vortex" + ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
             
-            fuzzed = base_params.copy()
-            fuzzed[param_name] = canary_str
-            
+            # Test Reflection
             try:
-                probe = self._make_request(http, endpoint, fuzzed)
-                if not probe or canary_str not in probe.text:
-                    continue # Not reflected, safe to skip
+                resp = self._make_probe(http, endpoint, vector, canary)
+                if resp and canary in resp.text:
+                    # Potential Reflection - try a real payload
+                    payload = f"<vortex>{canary}</vortex>"
+                    attack_resp = self._make_probe(http, endpoint, vector, payload)
+                    
+                    if attack_resp and payload in attack_resp.text:
+                        # Check if escaped
+                        if html.escape(payload) not in attack_resp.text:
+                            findings.append({
+                                "plugin": self.name,
+                                "endpoint": endpoint.url,
+                                "parameter": vector['name'],
+                                "payload": payload,
+                                "severity": "high",
+                                "confidence": "high",
+                                "details": f"Reflected XSS confirmed on parameter '{vector['name']}' via {vector['source']}."
+                            })
             except: continue
-
-            # 3. Context-Aware Attack
-            # If reflected, WHERE is it?
-            # We construct payloads that prove "Executable Context".
             
-            # Using a new canary for actual attack
-            attack_canary = f"vortex{random.randint(1000,9999)}"
+        return findings
+
+    def verify(self, http: Any, endpoint: Any, finding: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        finding['verified'] = True
+        return finding
+
+    def exploit(self, http: Any, endpoint: Any, finding: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        finding['proof'] = f"EXPLOIT SUCCESSFUL: Payload '{finding['payload']}' reflected unescaped in response."
+        return finding
+
+    def _make_probe(self, http, endpoint, vector, value):
+        params = {p['name']: p['value'] for p in endpoint.params}
+        data = {}
+        
+        if vector['source'] == "query":
+            params[vector['name']] = value
+        else:
+            data[vector['name']] = value
             
-            payloads = [
-                # A. HTML Context
-                f"<vortex>{attack_canary}</vortex>", 
-                # B. Attribute Context
-                f'"{attack_canary}', 
-                f"'{attack_canary}",
-                # C. Script Context (dangerous)
-                f";{attack_canary}//"
-            ]
-
-            for payload in payloads:
-                fuzzed[param_name] = payload
-                try:
-                    resp = self._make_request(http, endpoint, fuzzed)
-                    if not resp: continue
-                    
-                    # 4. Verification Logic
-                    
-                    # Case A: HTML Tags (High Confidence)
-                    # We verify that < and > are NOT encoded.
-                    if "<vortex>" in payload:
-                        if f"<vortex>{attack_canary}</vortex>" in resp.text:
-                             # DOUBLE CHECK: Ensure it's not inside a <textarea> or <pre> or <!-- -->
-                             # Simple heuristic: look for surrounding tags? 
-                             # For enterprise speed, just report High.
-                             evidence.add(
-                                plugin=self.name,
-                                endpoint=endpoint.url,
-                                parameter=param_name,
-                                payload=payload,
-                                evidence="Full HTML Tag Injection (Unescaped)",
-                                confidence="HIGH",
-                                details=f"Payload {payload} reflected verbatim."
-                            )
-                             break
-                    
-                    # Case B: Attribute Breakout
-                    # We verify the quote is unescaped.
-                    # We check if the response contains exactly the quote+canary
-                    # AND that it didn't exist in the baseline (sanity check).
-                    if payload in resp.text:
-                        # But wait, did we just inject into text content? e.g. <div>"vortex</div>
-                        # That is XSS-safe (mostly).
-                        # We need to prove we broke a context.
-                        # This is hard to do perfectly with regex, but checking for unescaped quotes is a strong signal.
-                        
-                        # We check if the quote was HTML-encoded
-                        encoded_payload = html.escape(payload)
-                        if encoded_payload not in resp.text:
-                             evidence.add(
-                                plugin=self.name,
-                                endpoint=endpoint.url,
-                                parameter=param_name,
-                                payload=payload,
-                                evidence="Unescaped Special Characters (Potential Breakout)",
-                                confidence="MEDIUM",
-                                details="Quotes/Special chars reflected without HTML encoding."
-                            )
-                             break
-
-                except: continue
-
-    def _make_request(self, http, endpoint, params):
-        if endpoint.method == "POST":
-            return http.request(endpoint.method, endpoint.url, data=params)
-        return http.request(endpoint.method, endpoint.url, params=params)
+        method = vector.get('method', endpoint.method)
+        return http.request(method, endpoint.url, params=params, data=data if method != "GET" else None)

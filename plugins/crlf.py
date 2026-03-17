@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -16,7 +16,10 @@ class CRLFPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -39,16 +42,10 @@ class CRLFPlugin(BasePlugin):
                 
                 cookie_header = headers.get("Set-Cookie", "")
                 if "vortex_crlf=1" in str(cookie_header):
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        parameter=param['name'],
-                        payload=self.PAYLOAD,
-                        evidence="Injected Set-Cookie header found via CRLF",
-                        confidence="HIGH"
-                    )
+                     findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': self.PAYLOAD, 'evidence': "Injected Set-Cookie header found via CRLF", 'confidence': "HIGH"})
 
             except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

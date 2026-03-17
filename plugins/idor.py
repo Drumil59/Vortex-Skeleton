@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import random
 import string
 import html
@@ -9,7 +9,10 @@ class IDORPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
             baseline = self._make_request(http, endpoint, base_params)
@@ -79,17 +82,11 @@ class IDORPlugin(BasePlugin):
                 # it's likely we accessed a different record.
                 confidence = "HIGH" if not is_dynamic else "MEDIUM"
                 
-                evidence.add(
-                    plugin=self.name,
-                    endpoint=endpoint.url,
-                    parameter=param_name,
-                    payload=mutation,
-                    evidence="IDOR / Access Control Bypass",
-                    confidence=confidence,
-                    details=f"Changed ID resulted in valid 200 OK response with unique content (Length Diff: {len(resp.text) - len(baseline.text)})."
+                findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param_name, 'payload': mutation, 'evidence': "IDOR / Access Control Bypass", 'confidence': confidence, 'details': f"Changed ID resulted in valid 200 OK response with unique content (Length Diff: {len(resp.text}) - len(baseline.text)})."
                 )
 
             except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

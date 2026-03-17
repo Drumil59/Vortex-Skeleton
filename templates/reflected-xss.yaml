@@ -1,0 +1,15 @@
+id: reflected-xss
+info:
+  name: Basic Reflected XSS
+  severity: high
+request:
+  method: GET
+  path: "?q={{payload}}"
+payloads:
+  - "<script>alert('VORTEX_XSS')</script>"
+  - "\"><img src=x onerror=alert(1)>"
+matchers:
+  type: word
+  words:
+    - "<script>alert('VORTEX_XSS')</script>"
+    - "\"><img src=x onerror=alert(1)>"

@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 from urllib.parse import urlparse
 
 class CORSPlugin(BasePlugin):
@@ -7,7 +7,10 @@ class CORSPlugin(BasePlugin):
     def should_run(self, endpoint):
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             parsed = urlparse(endpoint.url)
             base_domain = parsed.netloc
@@ -33,23 +36,10 @@ class CORSPlugin(BasePlugin):
                         severity = "CRITICAL"
                         msg += " + Allow-Credentials: true"
 
-                    evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        payload=f"Origin: {evil_origin}",
-                        evidence=msg,
-                        confidence=severity,
-                        details="Server explicitly trusts arbitrary origin."
-                    )
+                    findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': f"Origin: {evil_origin}", 'evidence': msg, 'confidence': severity, 'details': "Server explicitly trusts arbitrary origin."})
                 
                 elif acao == "*" and acac and acac.lower() == "true":
-                    evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        payload="Origin: *",
-                        evidence="Invalid CORS: Wildcard + Credentials",
-                        confidence="LOW",
-                        details="Specification violation."
-                    )
+                    findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': "Origin: *", 'evidence': "Invalid CORS: Wildcard + Credentials", 'confidence': "LOW", 'details': "Specification violation."})
 
         except: pass
+        return findings

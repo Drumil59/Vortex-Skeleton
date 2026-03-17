@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class CSPWeaknessPlugin(BasePlugin):
     """
@@ -9,7 +9,10 @@ class CSPWeaknessPlugin(BasePlugin):
     def should_run(self, endpoint):
         return endpoint.method == "GET"
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             resp = http.request("GET", endpoint.url)
             if not resp:
@@ -47,14 +50,9 @@ class CSPWeaknessPlugin(BasePlugin):
                  weaknesses.append("'data:' URI allowed (Potential XSS via data schemes)")
 
             if weaknesses:
-                evidence.add(
-                    plugin=self.name,
-                    endpoint=endpoint.url,
-                    payload=None,
-                    evidence="Weak CSP Configuration",
-                    confidence="MEDIUM",
-                    details="\n".join(weaknesses)
+                findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': None, 'evidence': "Weak CSP Configuration", 'confidence': "MEDIUM", 'details': "\n".join(weaknesses})
                 )
 
         except Exception:
             pass
+        return findings

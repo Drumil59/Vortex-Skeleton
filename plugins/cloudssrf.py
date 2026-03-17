@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class CloudMetadataPlugin(BasePlugin):
     """
@@ -21,7 +21,10 @@ class CloudMetadataPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -43,16 +46,10 @@ class CloudMetadataPlugin(BasePlugin):
                         # Detection
                         if any(x in resp.text for x in ["instance-id", "projectId", "computeMetadata", "AccessKeyId"]):
                              snippet = resp.text[:100].replace('\n', ' ').strip()
-                             evidence.add(
-                                plugin=self.name,
-                                endpoint=endpoint.url,
-                                parameter=param['name'],
-                                payload=p,
-                                evidence=f"Confirmed {cloud} Metadata Exposure. Data: {snippet}...",
-                                confidence="CRITICAL"
-                            )
+                             findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': p, 'evidence': f"Confirmed {cloud} Metadata Exposure. Data: {snippet}...", 'confidence': "CRITICAL"})
                             
                 except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 
 class LibraryScannerPlugin(BasePlugin):
@@ -18,7 +18,10 @@ class LibraryScannerPlugin(BasePlugin):
     def should_run(self, endpoint):
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             resp = http.request("GET", endpoint.url)
             if not resp: return
@@ -29,17 +32,11 @@ class LibraryScannerPlugin(BasePlugin):
                 matches = re.findall(regex, text)
                 for version in matches:
                     if self._is_outdated(version, min_safe_version):
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            payload=None,
-                            evidence=f"Outdated {lib_name} version: {version}",
-                            confidence="LOW",
-                            details=f"Found version {version}, generic safe version is > {min_safe_version}"
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': None, 'evidence': f"Outdated {lib_name} version: {version}", 'confidence': "LOW", 'details': f"Found version {version}, generic safe version is > {min_safe_version}"})
 
         except Exception:
             pass
+        return findings
 
     def _is_outdated(self, version, min_safe):
         try:

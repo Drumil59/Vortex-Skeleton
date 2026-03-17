@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 from urllib.parse import urljoin
 
 class XMLRPCPlugin(BasePlugin):
@@ -13,7 +13,10 @@ class XMLRPCPlugin(BasePlugin):
         # We assume the user scans the root or we just construct the path.
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         # Construct xmlrpc.php URL relative to the current endpoint's root
         # If endpoint is http://example.com/blog/post1 -> check http://example.com/blog/xmlrpc.php
         
@@ -40,14 +43,8 @@ class XMLRPCPlugin(BasePlugin):
             
             if resp_post and resp_post.status_code == 200:
                 if "<methodResponse>" in resp_post.text and "system.listMethods" in resp_post.text:
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=target,
-                        payload="system.listMethods",
-                        evidence="XML-RPC enabled and system.listMethods is available",
-                        confidence="HIGH",
-                        details="Attacker can use this for Brute Force Amplification or DDoS."
-                    )
+                     findings.append({'plugin': self.name, 'endpoint': target, 'payload': "system.listMethods", 'evidence': "XML-RPC enabled and system.listMethods is available", 'confidence': "HIGH", 'details': "Attacker can use this for Brute Force Amplification or DDoS."})
 
         except Exception:
             pass
+        return findings

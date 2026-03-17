@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import base64
 
 class PHPWrapperPlugin(BasePlugin):
@@ -20,7 +20,10 @@ class PHPWrapperPlugin(BasePlugin):
         # Target parameters that look like file inputs
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -37,14 +40,7 @@ class PHPWrapperPlugin(BasePlugin):
                     # Detection: Check for Base64 encoded PHP tags or common strings
                     # 'PD9waHAn' is '<?php' base64 encoded
                     if "PD9waH" in resp.text:
-                         evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param['name'],
-                            payload=payload,
-                            evidence="Disclosed PHP source code via base64 filter",
-                            confidence="CRITICAL"
-                        )
+                         findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': payload, 'evidence': "Disclosed PHP source code via base64 filter", 'confidence': "CRITICAL"})
                     
                     # Also check if decoding it works (for confirmation)
                     # (Simplified check: look for common PHP keywords in potential B64 blocks)
@@ -52,17 +48,11 @@ class PHPWrapperPlugin(BasePlugin):
                         try:
                             decoded = base64.b64decode(resp.text).decode('utf-8', errors='ignore')
                             if "<?php" in decoded or "include" in decoded:
-                                evidence.add(
-                                    plugin=self.name,
-                                    endpoint=endpoint.url,
-                                    parameter=param['name'],
-                                    payload=payload,
-                                    evidence="Confirmed source disclosure after B64 decoding",
-                                    confidence="CRITICAL"
-                                )
+                                findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': payload, 'evidence': "Confirmed source disclosure after B64 decoding", 'confidence': "CRITICAL"})
                         except: pass
 
                 except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -13,7 +13,10 @@ class PrototypePollutionPlugin(BasePlugin):
         # Only applicable to JSON APIs (POST/PUT)
         return endpoint.method in ["POST", "PUT"]
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         # Payload that attempts to poison the object prototype
         payload = {
             "__proto__": {
@@ -31,11 +34,7 @@ class PrototypePollutionPlugin(BasePlugin):
             # This is hard to detect blindly without crashing the server.
             # Safe Check: Reflection in response
             if "vortex_polluted" in resp.text and '"__proto__"' not in resp.text:
-                 evidence.add(
-                    plugin=self.name,
-                    endpoint=endpoint.url,
-                    payload="Object.prototype",
-                    evidence="Potential Prototype Pollution (Reflection detected)",
+                 findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': "Object.prototype", 'evidence': "Potential Prototype Pollution (Reflection detected})",
                     confidence="LOW",
                     details="Manual verification required."
                 )
@@ -43,4 +42,6 @@ class PrototypePollutionPlugin(BasePlugin):
         except: pass
 
 # filename: plugins/clickjacking.py
-from .base import BasePlugin
+        return findings
+
+from sdk.base_plugin import BasePlugin

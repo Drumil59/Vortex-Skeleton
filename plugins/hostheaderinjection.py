@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -15,7 +15,10 @@ class HostHeaderInjectionPlugin(BasePlugin):
     def should_run(self, endpoint):
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             # Inject Malicious Host
             headers = {"Host": self.EVIL_HOST}
@@ -28,17 +31,12 @@ class HostHeaderInjectionPlugin(BasePlugin):
             # 2. Location headers (Redirects)
             
             if self.EVIL_HOST in resp.text or self.EVIL_HOST in resp.headers.get("Location", ""):
-                 evidence.add(
-                    plugin=self.name,
-                    endpoint=endpoint.url,
-                    payload=f"Host: {self.EVIL_HOST}",
-                    evidence="Host header reflected in response body or Location header",
-                    confidence="MEDIUM",
-                    details="Potential for Cache Poisoning or Password Reset poisoning."
-                )
+                 findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': f"Host: {self.EVIL_HOST}", 'evidence': "Host header reflected in response body or Location header", 'confidence': "MEDIUM", 'details': "Potential for Cache Poisoning or Password Reset poisoning."})
 
         except: pass
 
 
 # filename: plugins/ssi.py
-from .base import BasePlugin
+        return findings
+
+from sdk.base_plugin import BasePlugin

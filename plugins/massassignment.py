@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class MassAssignmentPlugin(BasePlugin):
     """
@@ -21,7 +21,10 @@ class MassAssignmentPlugin(BasePlugin):
         # Mass assignment is most common in POST, PUT, PATCH
         return endpoint.method.upper() in ["POST", "PUT", "PATCH"]
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -47,15 +50,9 @@ class MassAssignmentPlugin(BasePlugin):
                     # and the response is significantly different or indicates success.
                     # This is often hard to confirm without a side-channel, but we flag it as an anomaly.
                     if resp.status_code == 200 and len(resp.text) != len(baseline.text):
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            payload=f"{param_name}={value}",
-                            evidence="Server accepted unexpected sensitive parameter",
-                            confidence="LOW",
-                            details="The application processed a request containing a potentially sensitive parameter that wasn't in the original form."
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': f"{param_name}={value}", 'evidence': "Server accepted unexpected sensitive parameter", 'confidence': "LOW", 'details': "The application processed a request containing a potentially sensitive parameter that wasn't in the original form."})
                         break
 
                 except Exception:
                     continue
+        return findings

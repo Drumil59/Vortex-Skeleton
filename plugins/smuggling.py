@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class RequestSmugglingPlugin(BasePlugin):
     """
@@ -11,7 +11,10 @@ class RequestSmugglingPlugin(BasePlugin):
         # Run on root or once per domain preferably, but here per endpoint is okay
         return endpoint.method == "GET"
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         # This is a passive/active check that requires careful header manipulation.
         # Python 'requests' library often normalizes headers, making this difficult.
         # We will try to send conflicting headers and look for 500 errors or timeouts 
@@ -33,14 +36,7 @@ class RequestSmugglingPlugin(BasePlugin):
             resp = http.request("POST", endpoint.url, headers=headers, data="1\r\nZ\r\n0\r\n\r\n")
             
             if resp and resp.status_code >= 500:
-                 evidence.add(
-                    plugin=self.name,
-                    endpoint=endpoint.url,
-                    payload="Conflicting CL and TE headers",
-                    evidence="Server returned 5xx error to potential smuggling probe",
-                    confidence="LOW",
-                    details="The server struggled with conflicting Content-Length and Transfer-Encoding headers."
-                )
+                 findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': "Conflicting CL and TE headers", 'evidence': "Server returned 5xx error to potential smuggling probe", 'confidence': "LOW", 'details': "The server struggled with conflicting Content-Length and Transfer-Encoding headers."})
             
             # 2. TE.CL Probe
             headers2 = {
@@ -51,13 +47,8 @@ class RequestSmugglingPlugin(BasePlugin):
             
             resp2 = http.request("POST", endpoint.url, headers=headers2, data="0\r\n\r\n")
             if resp2 and resp2.status_code >= 500:
-                 evidence.add(
-                    plugin=self.name,
-                    endpoint=endpoint.url,
-                    payload="Obfuscated TE header",
-                    evidence="Server returned 5xx error to obfuscated Transfer-Encoding",
-                    confidence="LOW"
-                )
+                 findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': "Obfuscated TE header", 'evidence': "Server returned 5xx error to obfuscated Transfer-Encoding", 'confidence': "LOW"})
 
         except Exception:
             pass
+        return findings

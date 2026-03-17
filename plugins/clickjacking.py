@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class ClickjackingPlugin(BasePlugin):
     name = "Clickjacking (Enterprise)"
@@ -6,7 +6,10 @@ class ClickjackingPlugin(BasePlugin):
     def should_run(self, endpoint):
         return endpoint.method == "GET"
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             resp = http.request("GET", endpoint.url)
             if not resp: return
@@ -23,12 +26,9 @@ class ClickjackingPlugin(BasePlugin):
 
             # 2. Reporting
             if vulnerable:
-                evidence.add(
-                    plugin=self.name,
-                    endpoint=endpoint.url,
-                    payload=None,
-                    evidence="Page allows framing (Missing XFO/CSP)",
+                findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': None, 'evidence': "Page allows framing (Missing XFO/CSP})",
                     confidence="MEDIUM",
                     details="X-Frame-Options and CSP frame-ancestors are missing."
                 )
         except: pass
+        return findings

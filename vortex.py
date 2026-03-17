@@ -3,10 +3,10 @@ import argparse
 import sys
 import concurrent.futures
 import threading
-import time
+import logging
 import queue
+from urllib.parse import urlparse
 from types import SimpleNamespace
-from concurrent.futures import ThreadPoolExecutor
 
 from core.http import HTTPClient
 from core.surface import SurfaceMapper
@@ -14,194 +14,137 @@ from core.analyzer import ResponseAnalyzer
 from core.engine import ScanEngine
 from evidence.store import EvidenceStore
 from report.generator import Report
+from core.payload_intelligence import PayloadIntelligence
+from core.url_normalizer import URLNormalizer
+from core.attack_surface_db import AttackSurfaceDB
+from core.js_miner import JSMiner
+from core.api_discovery import APIDiscovery
+from core.fuzzer import FuzzerEngine
+from core.exploit_engine import ExploitEngine
+from core.ai_attack_path import AIAttackPathDiscovery
+from core.bugbounty_pipeline import BugBountyPipeline
+from core.workspace_manager import WorkspaceManager
+from core.workflow_manager import WorkflowManager
+from core.oob_engine import OOBEngine
 
-# --- PLUGIN IMPORTS ---
-from plugins.securityheaders import SecurityHeadersPlugin
-from plugins.cors import CORSPlugin
-from plugins.openredirect import OpenRedirectPlugin
-from plugins.exposure import ExposurePlugin
-from plugins.methodtampering import MethodTamperingPlugin
-from plugins.graphql import GraphQLPlugin
-from plugins.idor import IDORPlugin
-from plugins.jwtweakness import JWTWeaknessPlugin
-from plugins.prototypepollution import PrototypePollutionPlugin
-from plugins.clickjacking import ClickjackingPlugin
-from plugins.xxe import XXEPlugin
-from plugins.ssrf import SSRFPlugin
-from plugins.csrf import CSRFPlugin
-from plugins.htmlinjection import HTMLInjectionPlugin
-from plugins.deserialization import DeserializationPlugin
-from plugins.nosqli import NoSQLiPlugin
-from plugins.ldapinjection import LDAPInjectionPlugin
-from plugins.hostheaderinjection import HostHeaderInjectionPlugin
-from plugins.ssi import SSIPlugin
-from plugins.crlf import CRLFPlugin
-from plugins.hpp import HPPPlugin
-from plugins.ssjs import SSJSPlugin
-from plugins.formula import FormulaPlugin
-from plugins.debugparam import DebugParamPlugin
-from plugins.activejwt import ActiveJWTPlugin
-from plugins.xpath import XPATHPlugin
-from plugins.rfi import RFIPlugin
-from plugins.tabnabbing import TabnabbingPlugin
-from plugins.dataleak import DataLeakPlugin
-from plugins.cachedeception import CacheDeceptionPlugin
-from plugins.sqli import SQLiPlugin
-from plugins.xss import XSSPlugin
-from plugins.lfi import PathTraversalPlugin
-from plugins.assets import SensitiveAssetPlugin
-from plugins.ssti import SSTIPlugin
-from plugins.shell import ShellInjectionPlugin
-from plugins.secretscanner import SecretScannerPlugin
-from plugins.backup import BackupFilePlugin
-from plugins.webdav import WebDAVPlugin
-from plugins.csp import CSPWeaknessPlugin
-from plugins.s3bucket import S3BucketScanner
-from plugins.massassignment import MassAssignmentPlugin
-from plugins.phpwrappers import PHPWrapperPlugin
-from plugins.cloudssrf import CloudMetadataPlugin
-from plugins.emailinjection import EmailInjectionPlugin
-from plugins.fileupload import FileUploadPlugin
-from plugins.smuggling import RequestSmugglingPlugin
-from plugins.xmlrpc import XMLRPCPlugin
-from plugins.viewstate import ViewStatePlugin
-from plugins.header_redirect import HeaderBasedRedirectPlugin
-from plugins.js_library import LibraryScannerPlugin
+import importlib
+import inspect
+import os
 
-BANNER = """
-\033[94m
-██╗   ██╗ ██████╗ ██████╗ ████████╗███████╗██╗  ██╗
-██║   ██║██╔═══██╗██╔══██╗╚══██╔══╝██╔════╝╚██╗██╔╝
-██║   ██║██║   ██║██████╔╝   ██║   █████╗   ╚███╔╝ 
-╚██╗ ██╔╝██║   ██║██╔══██╗   ██║   ██╔══╝   ██╔██╗ 
- ╚████╔╝ ╚██████╔╝██║  ██║   ██║   ███████╗██╔╝ ██╗
-  ╚═══╝   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
-\033[0m
-   \033[3m>> VORTEX 2.0: TURBO EDITION (53 VECTORS) <<\033[0m
-"""
+def load_plugins():
+    plugins = []
+    plugins_dir = os.path.join(os.path.dirname(__file__), "plugins")
+    if not os.path.exists(plugins_dir): return plugins
+    if os.path.dirname(__file__) not in sys.path:
+        sys.path.insert(0, os.path.dirname(__file__))
+    for root, dirs, files in os.walk(plugins_dir):
+        for file in files:
+            if file.endswith(".py") and not file.startswith("__"):
+                rel_path = os.path.relpath(os.path.join(root, file), os.path.dirname(__file__))
+                module_name = rel_path.replace(os.sep, '.')[:-3]
+                try:
+                    module = importlib.import_module(module_name)
+                    for name, obj in inspect.getmembers(module, inspect.isclass):
+                        if hasattr(obj, "detect") and obj.__module__ == module_name:
+                             if obj.__name__ not in ["BasePlugin"]:
+                                plugins.append(obj())
+                except Exception as e:
+                    logging.debug(f"Failed to load plugin {file}: {e}")
+    return plugins
+
+BANNER = """\033[94mVORTEX 5.0 - DEBUG ENABLED\033[0m"""
 
 def main():
-    print(BANNER)
-    parser = argparse.ArgumentParser(description="VORTEX 2.0: Turbo VAPT")
+    parser = argparse.ArgumentParser(description="VORTEX Offensive Platform")
     parser.add_argument("url", help="Target URL")
-    parser.add_argument("-d", "--depth", type=int, default=1, help="Crawl depth (Lower is faster)")
-    parser.add_argument("-t", "--threads", type=int, default=75, help="Scan threads (Higher is faster)")
-    parser.add_argument("-o", "--output", default=None, help="Report file (Optional)")
-    parser.add_argument("-p", "--proxy", help="HTTP Proxy")
-    parser.add_argument("--stealth", action="store_true", help="Enable Stealth")
-    parser.add_argument("--fast", action="store_true", help="Skip heavy fuzzing (SQLi, XSS, etc.)")
+    parser.add_argument("-d", "--depth", type=int, default=2)
+    parser.add_argument("-t", "--threads", type=int, default=50)
+    parser.add_argument("--debug", action="store_true", help="Enable verbose debug output")
+    parser.add_argument("--recon", action="store_true", help="Full Bug Bounty Recon")
     args = parser.parse_args()
 
-    if args.stealth:
-        args.threads = 1
-        print("[!] STEALTH ON: Speed throttled.")
+    # 1. Logging Setup
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    logging.basicConfig(level=log_level, format='%(asctime)s [%(levelname)s] %(message)s')
+    logger = logging.getLogger("vortex")
+    
+    if args.debug:
+        logger.info("[!] DEBUG MODE ENABLED - Verbose tracking active.")
 
-    config = SimpleNamespace(
-        timeout=10, 
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        proxy=args.proxy,
-        stealth=args.stealth,
-        threads=args.threads + 20 
-    )
-
+    # 2. Initialization
+    config = SimpleNamespace(timeout=10, user_agent="Vortex/5.0", threads=args.threads)
     http = HTTPClient(config)
-    mapper = SurfaceMapper(http, depth=args.depth, max_threads=20) 
-    analyzer = ResponseAnalyzer()
+    db = AttackSurfaceDB()
     evidence = EvidenceStore()
+    payload_intel = PayloadIntelligence()
+    engine = ScanEngine(evidence, payload_intelligence=payload_intel)
+    workspace = WorkspaceManager()
     
-    # NEW: Initialize Orchestration Engine
-    engine = ScanEngine(evidence)
+    workspace.create_workspace(urlparse(args.url).netloc)
     
-    heavy_plugins = ["SQL Injection (Advanced)", "Cross-Site Scripting (XSS)", "Path Traversal", "Command Injection", "SSTI"]
+    normalizer = URLNormalizer(args.url)
+    modules = {
+        'db': db,
+        'http': http,
+        'plugins': load_plugins(),
+        'exploit_engine': ExploitEngine(http),
+        'static_crawler': SurfaceMapper(http, args.url, depth=args.depth),
+        'js_miner': JSMiner(normalizer, http),
+        'api_discovery': APIDiscovery(http),
+        'fuzzer': FuzzerEngine(concurrency=args.threads),
+        'ai_attack_path': AIAttackPathDiscovery(),
+        'evidence': evidence
+    }
+    modules['bugbounty_pipeline'] = BugBountyPipeline(modules)
+
+    # 3. Pipeline Execution
+    logger.info(f"[*] Starting Vortex Offensive Pipeline against: {args.url}")
     
-    plugins = [
-        SecurityHeadersPlugin(), CORSPlugin(), OpenRedirectPlugin(), ExposurePlugin(), 
-        MethodTamperingPlugin(), GraphQLPlugin(), IDORPlugin(), JWTWeaknessPlugin(), 
-        PrototypePollutionPlugin(), ClickjackingPlugin(), XXEPlugin(), SSRFPlugin(), 
-        CSRFPlugin(), HTMLInjectionPlugin(), DeserializationPlugin(), NoSQLiPlugin(), 
-        LDAPInjectionPlugin(), HostHeaderInjectionPlugin(), SSIPlugin(), CRLFPlugin(), 
-        HPPPlugin(), SSJSPlugin(), FormulaPlugin(), DebugParamPlugin(), ActiveJWTPlugin(), 
-        XPATHPlugin(), RFIPlugin(), TabnabbingPlugin(), DataLeakPlugin(), CacheDeceptionPlugin(), 
-        SQLiPlugin(), XSSPlugin(), PathTraversalPlugin(), SensitiveAssetPlugin(), SSTIPlugin(), 
-        ShellInjectionPlugin(), SecretScannerPlugin(), BackupFilePlugin(), WebDAVPlugin(),
-        CSPWeaknessPlugin(), S3BucketScanner(), MassAssignmentPlugin(), PHPWrapperPlugin(),
-        CloudMetadataPlugin(), EmailInjectionPlugin(), FileUploadPlugin(), RequestSmugglingPlugin(),
-        XMLRPCPlugin(), ViewStatePlugin(), HeaderBasedRedirectPlugin(), LibraryScannerPlugin()
-    ]
-
-    if args.fast:
-        plugins = [p for p in plugins if p.name not in heavy_plugins]
-        print("[!] FAST MODE: Skipping heavy fuzzing plugins.")
-
-    print(f"[*] Starting TURBO Scan on {args.url} with {args.threads} threads...")
-
-    crawling_done = threading.Event()
+    # Discovery Phase (Crawler Engine)
+    from core.crawler_engine import CrawlerEngine
+    import asyncio
     
-    def run_crawler():
-        mapper.start_crawl(args.url)
-        crawling_done.set()
+    crawler = CrawlerEngine(args.url, http, depth=args.depth)
+    discovered_eps = asyncio.run(crawler.start())
     
-    crawler_thread = threading.Thread(target=run_crawler)
-    crawler_thread.start()
+    for ep in discovered_eps:
+        db.add_endpoint(ep)
+    
+    # Validation & Scanning
+    engine.run_pipeline(args.url, modules, recon_mode=args.recon, debug=args.debug)
 
-    # Consumer: Scanner
-    def scan_worker():
-        while True:
-            try:
-                endpoint = mapper.endpoints_queue.get(timeout=2)
-            except queue.Empty:
-                if crawling_done.is_set():
-                    return
-                else:
-                    continue
-            
-            # --- ORCHESTRATION: Gating & Saturation ---
-            # 1. Skip if domain scope is invalid (already handled by mapper but double check?)
-            # 2. Endpoint Deduplication is handled by SurfaceMapper.
-            
-            # 3. Create a Budgeted HTTP Wrapper for this Endpoint
-            # Limits scan request volume per URL to prevent overload
-            endpoint_client = http.create_budgeted_client(endpoint_budget=25) 
+    # 4. Finalizing
+    summary = engine.get_summary()
+    v_stats = summary['validator_stats']
+    
+    # Get aggregated findings for reporting
+    final_findings = evidence.get_findings()
+    
+    print("\n" + "="*40)
+    print("\033[94m[=] VORTEX SCAN SUMMARY\033[0m")
+    print("="*40)
+    print(f"Total Endpoints Discovered: {v_stats.get('total_checked', 0)}")
+    print(f"Valid Endpoints Scanned:    {v_stats.get('valid', 0)}")
+    print(f"Endpoints Filtered (404):   {v_stats.get('skipped_404', 0)}")
+    print(f"Endpoints Filtered (Soft):  {v_stats.get('skipped_soft_404', 0)}")
+    print(f"Confirmed Vulnerabilities:  {len(final_findings)}")
+    print("="*40)
 
-            for plugin in plugins:
-                # 4. Check Saturation
-                if not engine.should_run_plugin(plugin, endpoint):
-                    continue
+    if args.debug:
+        logger.info(f"Total raw findings: {len(evidence.items)}")
+        logger.info(f"After deduplication: {len(final_findings)}")
 
-                try:
-                    # 5. Run Plugin with limited HTTP client
-                    # We capture the evidence count before and after to update engine stats
-                    start_findings = len(evidence.items)
-                    plugin.run(endpoint_client, endpoint, analyzer, evidence)
-                    end_findings = len(evidence.items)
-                    
-                    if end_findings > start_findings:
-                        # Findings were added! Record for saturation
-                        for _ in range(end_findings - start_findings):
-                            engine.record_finding(plugin.name)
-                            
-                except Exception: 
-                    pass
-            
-            mapper.endpoints_queue.task_done()
-            print(f"\r[+] Scanned: {endpoint.url} [{len(evidence.items)} Vulns]", end="")
-
-    scan_threads = []
-    for _ in range(args.threads):
-        t = threading.Thread(target=scan_worker)
-        t.start()
-        scan_threads.append(t)
-
-    crawler_thread.join()
-    for t in scan_threads:
-        t.join()
-
-    Report.print_terminal(evidence)
-
-    if args.output:
-        print("[*] Generating Report...")
-        if Report.generate(evidence, args.output):
-            print(f"[+] Report saved to {args.output}")
+    if len(final_findings) > 0:
+        Report.generate_console_report(args.url, final_findings)
+    
+    if len(final_findings) > 0:
+        try:
+            choice = input("\nDo you want to save this report to a file? (y/n) ").lower().strip()
+            if choice == 'y':
+                Report.generate_markdown_report(args.url, final_findings, workspace.get_path(""))
+        except EOFError:
+            # Handle non-interactive environments
+            pass
 
 if __name__ == "__main__":
     main()

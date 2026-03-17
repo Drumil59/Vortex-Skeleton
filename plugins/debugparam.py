@@ -1,4 +1,5 @@
-from .base import BasePlugin
+from core.analyzer import ResponseAnalyzer
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -15,7 +16,13 @@ class DebugParamPlugin(BasePlugin):
     def should_run(self, endpoint):
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
+
+
+        analyzer = ResponseAnalyzer()
         try:
             # Baseline
             baseline = http.request(endpoint.method, endpoint.url)
@@ -33,13 +40,7 @@ class DebugParamPlugin(BasePlugin):
                 
                 # Significant change indicates the parameter is handled
                 if diff["status_changed"] or diff["length_changed"]:
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        payload=f"{p}=true",
-                        evidence="Hidden parameter caused response change",
-                        confidence="MEDIUM",
-                        diff=diff
-                    )
+                     findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': f"{p}=true", 'evidence': "Hidden parameter caused response change", 'confidence': "MEDIUM", 'diff': diff})
 
         except: pass
+        return findings

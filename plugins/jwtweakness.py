@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -14,11 +14,16 @@ class JWTWeaknessPlugin(BasePlugin):
         # OR if we assume headers are passed. For this plugin, we analyze headers.
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         # This plugin usually requires traffic analysis. 
         # Active Check: If we can identify a JWT in the params or cookies.
         pass # Placeholder for advanced logic requiring token extraction
 
 
 # filename: plugins/proto.py
-from .base import BasePlugin
+        return findings
+
+from sdk.base_plugin import BasePlugin

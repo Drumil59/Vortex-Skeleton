@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class SecurityHeadersPlugin(BasePlugin):
     name = "Security Headers (Enterprise)"
@@ -14,7 +14,10 @@ class SecurityHeadersPlugin(BasePlugin):
         # Only check on GET requests to root or main pages to reduce noise
         return endpoint.method == "GET"
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             # 1. First Check
             resp = http.request(endpoint.method, endpoint.url)
@@ -36,11 +39,7 @@ class SecurityHeadersPlugin(BasePlugin):
             if resp.status_code >= 500: return 
 
             # Report findings
-            evidence.add(
-                plugin=self.name,
-                endpoint=endpoint.url,
-                payload=None,
-                evidence=f"Missing Headers: {', '.join(missing)}",
+            findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': None, 'evidence': f"Missing Headers: {', '.join(missing})}",
                 confidence="LOW",
                 details="Headers were consistently missing on valid response."
             )
@@ -51,13 +50,10 @@ class SecurityHeadersPlugin(BasePlugin):
             if "X-Powered-By" in headers: leaks.append(f"X-Powered-By: {headers['X-Powered-By']}")
             
             if leaks:
-                evidence.add(
-                    plugin="Information Disclosure",
-                    endpoint=endpoint.url,
-                    payload=None,
-                    evidence=f"Technology Leak: {', '.join(leaks)}",
+                findings.append({'plugin': "Information Disclosure", 'endpoint': endpoint.url, 'payload': None, 'evidence': f"Technology Leak: {', '.join(leaks})}",
                     confidence="MEDIUM",
                     details="Server banners exposed in HTTP headers."
                 )
 
         except: pass
+        return findings

@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -24,7 +24,10 @@ class GraphQLPlugin(BasePlugin):
         # Only run on base URLs to discover the API
         return endpoint.method == "GET"
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         # 1. Discovery
         for path in self.ENDPOINTS:
             target = f"{endpoint.url.rstrip('/')}{path}"
@@ -40,30 +43,19 @@ class GraphQLPlugin(BasePlugin):
 
                 # Signature Check
                 if "errors" in resp.text and "message" in resp.text or "data" in resp.text:
-                    evidence.add(
-                        plugin=self.name,
-                        endpoint=target,
-                        payload=None,
-                        evidence="GraphQL Endpoint Discovered",
-                        confidence="HIGH"
-                    )
+                    findings.append({'plugin': self.name, 'endpoint': target, 'payload': None, 'evidence': "GraphQL Endpoint Discovered", 'confidence': "HIGH"})
 
                     # 2. Introspection Check
                     resp_intro = http.request("POST", target, json={"query": self.INTROSPECTION_QUERY})
                     if resp_intro and "__schema" in resp_intro.text:
-                         evidence.add(
-                            plugin="GraphQL Introspection",
-                            endpoint=target,
-                            payload="Introspection Query",
-                            evidence="Full Schema Disclosure Enabled",
-                            confidence="CRITICAL",
-                            details="Attackers can map the entire API surface."
-                        )
+                         findings.append({'plugin': "GraphQL Introspection", 'endpoint': target, 'payload': "Introspection Query", 'evidence': "Full Schema Disclosure Enabled", 'confidence': "CRITICAL", 'details': "Attackers can map the entire API surface."})
                     break 
 
             except Exception:
                 continue
 
 # filename: plugins/idor.py
-from .base import BasePlugin
+        return findings
+
+from sdk.base_plugin import BasePlugin
 import re

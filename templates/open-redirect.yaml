@@ -1,0 +1,17 @@
+id: open-redirect
+info:
+  name: Open Redirect
+  severity: medium
+request:
+  method: GET
+  path: "?url={{payload}}"
+payloads:
+  - "http://evil.com"
+  - "//evil.com"
+  - "https://evil.com"
+matchers:
+  type: word
+  words:
+    - "Location: http://evil.com"
+    - "Location: https://evil.com"
+    - "Location: //evil.com"

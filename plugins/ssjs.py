@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -19,7 +19,10 @@ class SSJSPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -35,16 +38,10 @@ class SSJSPlugin(BasePlugin):
                     # If we successfully ended the response with our string, it will be the ONLY content
                     # or at least present.
                     if "vortex_ssjs" in resp.text:
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param['name'],
-                            payload=payload,
-                            evidence="Node.js SSJS execution confirmed",
-                            confidence="CRITICAL"
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': payload, 'evidence': "Node.js SSJS execution confirmed", 'confidence': "CRITICAL"})
                         break
                 except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

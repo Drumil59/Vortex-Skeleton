@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class EmailInjectionPlugin(BasePlugin):
     """
@@ -18,7 +18,10 @@ class EmailInjectionPlugin(BasePlugin):
         # Target parameters that look like email inputs
         return any(p['name'].lower() in ['email', 'mail', 'to', 'from', 'cc', 'contact'] for p in endpoint.params)
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -39,12 +42,8 @@ class EmailInjectionPlugin(BasePlugin):
                     # but we check if the CRLF is reflected unencoded in the response 
                     # (indicating poor sanitization).
                     if "\nBcc:" in resp.text or "\nCc:" in resp.text:
-                         evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param['name'],
-                            payload=payload,
-                            evidence="CRLF injection reflected in response (Possible Email Injection)",
+                         findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': payload, 'evidence': "CRLF injection reflected in response (Possible Email Injection})",
                             confidence="MEDIUM"
                         )
                 except: continue
+        return findings

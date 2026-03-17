@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -16,7 +16,10 @@ class SSIPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -40,16 +43,12 @@ class SSIPlugin(BasePlugin):
                 resp_env = self._make_request(http, endpoint, fuzzed)
                 
                 if resp_env and ("HTTP_USER_AGENT" in resp_env.text or "DOCUMENT_ROOT" in resp_env.text):
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        parameter=param['name'],
-                        payload=payload_env,
-                        evidence="SSI execution confirmed (Environment variables printed)",
+                     findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': payload_env, 'evidence': "SSI execution confirmed (Environment variables printed})",
                         confidence="CRITICAL"
                     )
 
             except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":
@@ -58,4 +57,4 @@ class SSIPlugin(BasePlugin):
 
 
 # filename: plugins/crlf.py
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin

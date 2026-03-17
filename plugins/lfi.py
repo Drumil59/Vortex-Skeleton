@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import random
 
 class PathTraversalPlugin(BasePlugin):
@@ -22,7 +22,10 @@ class PathTraversalPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
             baseline = self._make_request(http, endpoint, base_params)
@@ -59,18 +62,11 @@ class PathTraversalPlugin(BasePlugin):
                         # We found the marker!
                         # Double check against negative control just in case.
                         
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param_name,
-                            payload=payload,
-                            evidence=f"File Content Leak: {marker}",
-                            confidence="CRITICAL",
-                            details="Known file marker found in response body."
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param_name, 'payload': payload, 'evidence': f"File Content Leak: {marker}", 'confidence': "CRITICAL", 'details': "Known file marker found in response body."})
                         return
 
                 except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

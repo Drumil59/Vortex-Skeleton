@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -20,7 +20,10 @@ class DataLeakPlugin(BasePlugin):
     def should_run(self, endpoint):
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             resp = http.request(endpoint.method, endpoint.url)
             if not resp: return
@@ -28,11 +31,6 @@ class DataLeakPlugin(BasePlugin):
             for ptype, pattern in self.PATTERNS.items():
                 matches = re.findall(pattern, resp.text)
                 if matches:
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        payload=None,
-                        evidence=f"Potential {ptype} leaked: {matches[0]}",
-                        confidence="HIGH"
-                    )
+                     findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': None, 'evidence': f"Potential {ptype} leaked: {matches[0]}", 'confidence': "HIGH"})
         except: pass
+        return findings

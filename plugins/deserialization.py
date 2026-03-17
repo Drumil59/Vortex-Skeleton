@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -19,7 +19,10 @@ class DeserializationPlugin(BasePlugin):
     def should_run(self, endpoint):
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         # 1. Passive Check (Look for serialized data in current baseline)
         try:
             resp = http.request(endpoint.method, endpoint.url) # Refresh
@@ -27,14 +30,7 @@ class DeserializationPlugin(BasePlugin):
             
             for lang, pattern in self.SIGS.items():
                 if re.search(pattern, resp.text):
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        payload=None,
-                        evidence=f"Serialized {lang} object detected in response",
-                        confidence="MEDIUM",
-                        details="Application handles serialized objects."
-                    )
+                     findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': None, 'evidence': f"Serialized {lang} object detected in response", 'confidence': "MEDIUM", 'details': "Application handles serialized objects."})
         except: pass
         
         # 2. Active Error Check (PHP)
@@ -49,15 +45,9 @@ class DeserializationPlugin(BasePlugin):
                     
                     req = self._make_request(http, endpoint, fuzzed)
                     if req and ("unserialize()" in req.text or "PHP Notice" in req.text):
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param['name'],
-                            payload="PHP Object Injection",
-                            evidence="PHP Deserialization error triggered",
-                            confidence="HIGH"
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': "PHP Object Injection", 'evidence': "PHP Deserialization error triggered", 'confidence': "HIGH"})
             except: pass
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

@@ -1,4 +1,5 @@
-from .base import BasePlugin
+from core.analyzer import ResponseAnalyzer
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -14,7 +15,13 @@ class NoSQLiPlugin(BasePlugin):
         # Most effective on JSON endpoints or parameters handled as object keys
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
+
+
+        analyzer = ResponseAnalyzer()
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
             baseline = self._make_request(http, endpoint, base_params)
@@ -47,17 +54,10 @@ class NoSQLiPlugin(BasePlugin):
                 
                 # If we get MORE data (length increase) or a 200 OK where we expected 401/403
                 if diff["length_changed"] and len(resp.text) > len(baseline.text):
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        parameter=param['name'],
-                        payload=f"{param['name']}[$ne]=vortex_guard",
-                        evidence="Response size increased significantly with NoSQL operator",
-                        confidence="MEDIUM",
-                        diff=diff
-                    )
+                     findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': f"{param['name']}[$ne]=vortex_guard", 'evidence': "Response size increased significantly with NoSQL operator", 'confidence': "MEDIUM", 'diff': diff})
 
             except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":
@@ -66,4 +66,4 @@ class NoSQLiPlugin(BasePlugin):
 
 
 # filename: plugins/ldap.py
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin

@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 import json
 import base64
@@ -15,7 +15,10 @@ class HTMLInjectionPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -30,15 +33,11 @@ class HTMLInjectionPlugin(BasePlugin):
                 
                 # Check for raw reflection of the H1 tag
                 if self.PAYLOAD in resp.text:
-                     evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        parameter=param['name'],
-                        payload=self.PAYLOAD,
-                        evidence="HTML Tag reflected (Content Spoofing)",
+                     findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': self.PAYLOAD, 'evidence': "HTML Tag reflected (Content Spoofing})",
                         confidence="MEDIUM"
                     )
             except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":
@@ -47,5 +46,5 @@ class HTMLInjectionPlugin(BasePlugin):
 
 
 # filename: plugins/deser.py
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re

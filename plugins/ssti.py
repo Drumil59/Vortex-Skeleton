@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class SSTIPlugin(BasePlugin):
     """
@@ -30,7 +30,10 @@ class SSTIPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
             baseline = self._make_request(http, endpoint, base_params)
@@ -47,29 +50,16 @@ class SSTIPlugin(BasePlugin):
 
                     # Check 1: Expected Result (Math)
                     if expected in resp.text and payload not in resp.text:
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param['name'],
-                            payload=payload,
-                            evidence=f"Template expression evaluated to '{expected}'",
-                            confidence="CRITICAL"
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': payload, 'evidence': f"Template expression evaluated to '{expected}'", 'confidence': "CRITICAL"})
                         break
                     
                     # Check 2: Error Based
                     if "TemplateSyntaxError" in resp.text or "freemarker.core" in resp.text or "org.apache.velocity" in resp.text:
-                         evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param['name'],
-                            payload=payload,
-                            evidence="SSTI Error Message Detected",
-                            confidence="HIGH"
-                        )
+                         findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param['name'], 'payload': payload, 'evidence': "SSTI Error Message Detected", 'confidence': "HIGH"})
                          break
 
                 except Exception: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method.upper() == "POST":

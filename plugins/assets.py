@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 from urllib.parse import urljoin, urlparse
 
 class SensitiveAssetPlugin(BasePlugin):
@@ -34,7 +34,10 @@ class SensitiveAssetPlugin(BasePlugin):
         """
         return endpoint.method.upper() == "GET"
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         # Determine the base directory of the current endpoint
         # e.g., http://target.com/admin/login.php -> http://target.com/admin/
         parsed = urlparse(endpoint.url)
@@ -76,15 +79,9 @@ class SensitiveAssetPlugin(BasePlugin):
                                 break
 
                     if content_match:
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=target_url,
-                            payload=filename,
-                            evidence="Found accessible sensitive file with valid content signature.",
-                            confidence="HIGH",
-                            details=f"Matched signature for {filename}"
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': target_url, 'payload': filename, 'evidence': "Found accessible sensitive file with valid content signature.", 'confidence': "HIGH", 'details': f"Matched signature for {filename}"})
             
             except Exception:
                 # Gracefully handle timeouts or connection errors
                 continue
+        return findings

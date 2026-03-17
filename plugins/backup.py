@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 from urllib.parse import urlparse, urljoin
 import os
 
@@ -23,7 +23,10 @@ class BackupFilePlugin(BasePlugin):
             return False
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         parsed = urlparse(endpoint.url)
         path = parsed.path
         
@@ -88,13 +91,8 @@ class BackupFilePlugin(BasePlugin):
                         is_suspicious = True
                     
                     if is_suspicious:
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=target_url,
-                            payload=candidate,
-                            evidence="Found accessible backup file",
-                            confidence="HIGH"
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': target_url, 'payload': candidate, 'evidence': "Found accessible backup file", 'confidence': "HIGH"})
 
             except Exception:
                 continue
+        return findings

@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 
 class S3BucketScanner(BasePlugin):
@@ -16,7 +16,10 @@ class S3BucketScanner(BasePlugin):
     def should_run(self, endpoint):
         return True
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             resp = http.request("GET", endpoint.url)
             if not resp or not resp.text:
@@ -40,20 +43,10 @@ class S3BucketScanner(BasePlugin):
                     
                     if bucket_resp and bucket_resp.status_code == 200:
                         if "ListBucketResult" in bucket_resp.text:
-                            evidence.add(
-                                plugin=self.name,
-                                endpoint=endpoint.url,
-                                payload=bucket_url,
-                                evidence=f"Open S3 Bucket found: {bucket}",
-                                confidence="HIGH",
-                                details="Bucket listing is enabled (ListObjects)."
+                            findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': bucket_url, 'evidence': f"Open S3 Bucket found: {bucket}", 'confidence': "HIGH", 'details': "Bucket listing is enabled (ListObjects})."
                             )
                     elif bucket_resp and bucket_resp.status_code == 403:
-                         evidence.add(
-                                plugin=self.name,
-                                endpoint=endpoint.url,
-                                payload=bucket_url,
-                                evidence=f"Found S3 Bucket: {bucket} (Access Denied)",
+                         findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': bucket_url, 'evidence': f"Found S3 Bucket: {bucket} (Access Denied})",
                                 confidence="INFO",
                                 details="Bucket exists but listing is disabled."
                             )
@@ -63,3 +56,4 @@ class S3BucketScanner(BasePlugin):
 
         except Exception:
             pass
+        return findings

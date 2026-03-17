@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 
 class SSRFPlugin(BasePlugin):
     name = "SSRF (Enterprise)"
@@ -20,7 +20,10 @@ class SSRFPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -38,18 +41,11 @@ class SSRFPlugin(BasePlugin):
                     
                     if marker in resp.text:
                         # Proof found
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param_name,
-                            payload=payload,
-                            evidence=f"SSRF / Metadata Leak: {marker}",
-                            confidence="CRITICAL",
-                            details="Cloud metadata or internal service banner found."
-                        )
+                        findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param_name, 'payload': payload, 'evidence': f"SSRF / Metadata Leak: {marker}", 'confidence': "CRITICAL", 'details': "Cloud metadata or internal service banner found."})
                         return
 
                 except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

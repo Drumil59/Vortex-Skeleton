@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import random
 import string
 
@@ -8,7 +8,10 @@ class ShellInjectionPlugin(BasePlugin):
     def should_run(self, endpoint):
         return len(endpoint.params) > 0
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+
+
+        findings = []
         try:
             base_params = {p['name']: p['value'] for p in endpoint.params}
         except: return
@@ -64,18 +67,14 @@ class ShellInjectionPlugin(BasePlugin):
                         
                         # Sanity: Ensure canary wasn't in baseline (impossible by definition of random)
                         
-                        evidence.add(
-                            plugin=self.name,
-                            endpoint=endpoint.url,
-                            parameter=param_name,
-                            payload=payload,
-                            evidence="Command Execution (Echo)",
+                        findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'parameter': param_name, 'payload': payload, 'evidence': "Command Execution (Echo})",
                             confidence="CRITICAL",
                             details=f"Canary string '{canary}' found in response body."
                         )
                         return # Critical finding, stop plugin
 
                 except: continue
+        return findings
 
     def _make_request(self, http, endpoint, params):
         if endpoint.method == "POST":

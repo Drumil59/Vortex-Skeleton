@@ -1,4 +1,4 @@
-from .base import BasePlugin
+from sdk.base_plugin import BasePlugin
 import re
 
 class SecretScannerPlugin(BasePlugin):
@@ -24,7 +24,10 @@ class SecretScannerPlugin(BasePlugin):
         # Run on all text-based responses (HTML, JS, JSON)
         return True 
 
-    def run(self, http, endpoint, analyzer, evidence):
+    def detect(self, http, endpoint, payload_intel):
+ 
+
+        findings = []
         try:
             resp = http.request("GET", endpoint.url)
             if not resp or not resp.text:
@@ -45,14 +48,9 @@ class SecretScannerPlugin(BasePlugin):
                     # Truncate for report if too many
                     report_matches = unique_matches[:5]
                     
-                    evidence.add(
-                        plugin=self.name,
-                        endpoint=endpoint.url,
-                        payload=None,
-                        evidence=f"Found {name}",
-                        confidence="HIGH",
-                        details=f"Matches: {', '.join(report_matches)}"
+                    findings.append({'plugin': self.name, 'endpoint': endpoint.url, 'payload': None, 'evidence': f"Found {name}", 'confidence': "HIGH", 'details': f"Matches: {', '.join(report_matches})}"
                     )
 
         except Exception:
             pass
+        return findings
