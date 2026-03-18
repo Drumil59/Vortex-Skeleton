@@ -1,4 +1,4 @@
-import aiohttp
+import httpx
 import asyncio
 import re
 from typing import Set
@@ -10,35 +10,35 @@ class SubdomainRecon:
     def __init__(self, concurrency: int = 20):
         self.concurrency = concurrency
 
-    async def _fetch_crt_sh(self, domain: str, session: aiohttp.ClientSession) -> Set[str]:
+    async def _fetch_crt_sh(self, domain: str, client: httpx.AsyncClient) -> Set[str]:
         subdomains = set()
         url = f"https://crt.sh/?q=%25.{domain}&output=json"
         try:
-            async with session.get(url, timeout=15) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    for entry in data:
-                        name = entry.get("name_value", "")
-                        if name:
-                            for sub in name.split('\n'):
-                                if sub.endswith(domain) and not sub.startswith('*'):
-                                    subdomains.add(sub.lower())
+            response = await client.get(url, timeout=15)
+            if response.status_code == 200:
+                data = response.json()
+                for entry in data:
+                    name = entry.get("name_value", "")
+                    if name:
+                        for sub in name.split('\n'):
+                            if sub.endswith(domain) and not sub.startswith('*'):
+                                subdomains.add(sub.lower())
         except Exception:
             pass 
         return subdomains
         
-    async def _fetch_hackertarget(self, domain: str, session: aiohttp.ClientSession) -> Set[str]:
+    async def _fetch_hackertarget(self, domain: str, client: httpx.AsyncClient) -> Set[str]:
         subdomains = set()
         url = f"https://api.hackertarget.com/hostsearch/?q={domain}"
         try:
-            async with session.get(url, timeout=15) as response:
-                if response.status == 200:
-                    text = await response.text()
-                    for line in text.splitlines():
-                        if ',' in line:
-                            sub = line.split(',')[0]
-                            if sub.endswith(domain):
-                                subdomains.add(sub.lower())
+            response = await client.get(url, timeout=15)
+            if response.status_code == 200:
+                text = response.text
+                for line in text.splitlines():
+                    if ',' in line:
+                        sub = line.split(',')[0]
+                        if sub.endswith(domain):
+                            subdomains.add(sub.lower())
         except Exception:
             pass
         return subdomains
@@ -47,11 +47,11 @@ class SubdomainRecon:
         print(f"[*] Starting Subdomain Recon for: {domain}")
         subdomains = set()
         
-        connector = aiohttp.TCPConnector(limit=self.concurrency, ssl=False)
-        async with aiohttp.ClientSession(connector=connector) as session:
+        limits = httpx.Limits(max_connections=self.concurrency)
+        async with httpx.AsyncClient(verify=False, limits=limits) as client:
             tasks = [
-                self._fetch_crt_sh(domain, session),
-                self._fetch_hackertarget(domain, session)
+                self._fetch_crt_sh(domain, client),
+                self._fetch_hackertarget(domain, client)
             ]
             results = await asyncio.gather(*tasks)
             for res in results:

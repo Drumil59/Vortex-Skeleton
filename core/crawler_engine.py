@@ -55,7 +55,7 @@ class CrawlerEngine:
             self.logger.info(f"[*] Crawling (Depth {depth}): {url}")
 
             # 1. Fetch Page
-            resp = self.http.request("GET", url)
+            resp = await self.http.async_request("GET", url)
             if not resp or resp.status_code >= 400:
                 continue
 

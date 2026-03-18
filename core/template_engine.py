@@ -1,14 +1,14 @@
 import os
 import yaml
 import glob
-import aiohttp
+import httpx
 import asyncio
 from typing import List, Dict, Any
 from .attack_surface_db import Endpoint
 
 class TemplateEngine:
     """
-    Nuclei-style YAML template scanning engine.
+    Nuclei-style YAML template scanning engine using HTTPX.
     Loads templates and executes them against discovered endpoints.
     Optimized for execution speed with Semaphores and Connection Pooling.
     """
@@ -32,7 +32,7 @@ class TemplateEngine:
                 print(f"[!] Error loading template {filepath}: {e}")
         return templates
 
-    async def _execute_template(self, session: aiohttp.ClientSession, semaphore: asyncio.Semaphore, endpoint: Endpoint, template: Dict[str, Any]) -> List[dict]:
+    async def _execute_template(self, client: httpx.AsyncClient, semaphore: asyncio.Semaphore, endpoint: Endpoint, template: Dict[str, Any]) -> List[dict]:
         findings = []
         req = template['request']
         payloads = template.get('payloads', [''])
@@ -48,7 +48,7 @@ class TemplateEngine:
                 else:
                     target_url = f"{target_url}{req['path'].replace('{{payload}}', payload)}"
 
-            method = req.get('method', 'GET')
+            method = req.get('method', 'GET').upper()
             headers = req.get('headers', {})
             body = req.get('body', '')
 
@@ -59,33 +59,33 @@ class TemplateEngine:
             async with semaphore:
                 try:
                     # Passing data if method allows, else params. Using kwargs properly.
-                    kwargs = {"timeout": 5, "ssl": False, "headers": injected_headers}
-                    if injected_body and method.upper() in ["POST", "PUT", "PATCH"]:
-                        kwargs["data"] = injected_body
+                    kwargs = {"timeout": 5, "headers": injected_headers}
+                    if injected_body and method in ["POST", "PUT", "PATCH"]:
+                        kwargs["content"] = injected_body
 
-                    async with session.request(method, target_url, **kwargs) as response:
-                        text = await response.text()
-                        
-                        # Evaluate matchers
-                        if matchers.get('type') == 'word':
-                            for word in matchers.get('words', []):
-                                if word in text:
-                                    findings.append({
-                                        "template_id": template['id'],
-                                        "endpoint": target_url,
-                                        "payload": payload,
-                                        "severity": template.get("info", {}).get("severity", "medium")
-                                    })
-                                    break # Found a match for this payload
-                        elif matchers.get('type') == 'status':
-                            status_codes = matchers.get('status', [])
-                            if response.status in status_codes:
+                    response = await client.request(method, target_url, **kwargs)
+                    text = response.text
+                    
+                    # Evaluate matchers
+                    if matchers.get('type') == 'word':
+                        for word in matchers.get('words', []):
+                            if word in text:
                                 findings.append({
                                     "template_id": template['id'],
                                     "endpoint": target_url,
                                     "payload": payload,
                                     "severity": template.get("info", {}).get("severity", "medium")
                                 })
+                                break # Found a match for this payload
+                    elif matchers.get('type') == 'status':
+                        status_codes = matchers.get('status', [])
+                        if response.status_code in status_codes:
+                            findings.append({
+                                "template_id": template['id'],
+                                "endpoint": target_url,
+                                "payload": payload,
+                                "severity": template.get("info", {}).get("severity", "medium")
+                            })
                 except Exception as e:
                     pass
                 
@@ -96,14 +96,14 @@ class TemplateEngine:
         all_findings = []
         
         # Use connection pooling to increase execution speed
-        connector = aiohttp.TCPConnector(limit=self.concurrency, ssl=False)
+        limits = httpx.Limits(max_connections=self.concurrency)
         semaphore = asyncio.Semaphore(self.concurrency)
         
-        async with aiohttp.ClientSession(connector=connector) as session:
+        async with httpx.AsyncClient(verify=False, limits=limits) as client:
             tasks = []
             for ep in endpoints:
                 for template in self.templates:
-                    tasks.append(self._execute_template(session, semaphore, ep, template))
+                    tasks.append(self._execute_template(client, semaphore, ep, template))
             
             # Chunk tasks to prevent memory issues with massive lists
             chunk_size = 1000
