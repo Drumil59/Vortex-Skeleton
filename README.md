@@ -29,38 +29,38 @@ Unlike traditional scanners, Vortex-Skeleton maps the entire attack surface usin
 
 ```text
 Vortex-Skeleton/
-├── core/                       # Core Offensive Engine & Intelligence
-│   ├── engine.py               # Central Scan Orchestrator (Detection Lifecycle)
-│   ├── crawler_engine.py       # Multi-Source Discovery Coordinator
-│   ├── browser_crawler.py      # Playwright-based Dynamic Discovery
-│   ├── api_discovery.py        # Swagger/OpenAPI & GraphQL Parser
-│   ├── attack_graph.py         # Vulnerability Relationship Modeling
-│   ├── ai_attack_path.py       # Predictive Vulnerability Chaining
-│   ├── distributed_cluster.py  # Concurrency & Worker Management
-│   ├── oob_engine.py           # Out-Of-Band Interaction Logic
-│   ├── js_miner.py             # JavaScript Content Analysis
-│   ├── http.py                 # Robust Offensive HTTP Client (httpx)
-│   └── ...                     # (Fuzzer, Payload Intel, WAF Evasion, etc.)
-├── plugins/                    # Vulnerability Detection Modules
-│   ├── advanced_sqli.py        # Advanced SQL Injection Logic
-│   ├── enterprise_ssrf.py      # Cloud & Infrastructure SSRF
-│   ├── activejwt.py            # JWT Security Analysis
-│   ├── xss.py                  # Reflected XSS Module
-│   ├── idor.py                 # Insecure Direct Object Reference
-│   └── ...                     # (60+ Specialized Detection Plugins)
-├── sdk/                        # Plugin Development Kit
-│   └── base_plugin.py          # Standardized Plugin Base Class
-├── evidence/                   # Findings & Artifact Management
-│   └── store.py                # Evidence Collection & Deduplication
-├── report/                     # Reporting & Export Engine
-│   ├── generator.py            # Console & Markdown Generation
-│   └── severity_sorter.py      # Risk-based Finding Prioritization
-├── risk/                       # Risk Scoring Logic
-│   └── cvss.py                 # CVSS v3.1 Scoring Implementation
-├── templates/                  # Signature-based Detection Templates
+├── core/                      
+│   ├── engine.py              
+│   ├── crawler_engine.py       
+│   ├── browser_crawler.py      
+│   ├── api_discovery.py        
+│   ├── attack_graph.py         
+│   ├── ai_attack_path.py       
+│   ├── distributed_cluster.py  
+│   ├── oob_engine.py           
+│   ├── js_miner.py             
+│   ├── http.py                 
+│   └── ...                    
+├── plugins/                    
+│   ├── advanced_sqli.py        
+│   ├── enterprise_ssrf.py      
+│   ├── activejwt.py            
+│   ├── xss.py                  
+│   ├── idor.py                 
+│   └── ...                     
+├── sdk/                        
+│   └── base_plugin.py          
+├── evidence/                   
+│   └── store.py               
+├── report/                     
+│   ├── generator.py            
+│   └── severity_sorter.py     
+├── risk/                       
+│   └── cvss.py                 
+├── templates/                  
 │   ├── reflected-xss.yaml
 │   └── sqli-error.yaml
-└── vortex.py                   # Main CLI Entry Point & Pipeline Manager
+└── vortex.py                   
 ```
 
 ---
@@ -105,23 +105,6 @@ python3 vortex.py https://api.enterprise.com --depth 3 --threads 100 --debug
 
 ---
 
-# 🔌 Plugin Development (SDK)
-
-Developing custom checks is streamlined via the `BasePlugin` SDK. Every plugin implements a `detect -> verify -> exploit` lifecycle.
-
-```python
-from sdk.base_plugin import BasePlugin
-
-class MyPlugin(BasePlugin):
-    name = "Custom Vulnerability"
-    category = "Injection"
-
-    def detect(self, http, endpoint, payload_intel):
-        # Your detection logic here
-        return findings
-```
-
----
 
 # 📊 Evidence & Reporting
 
